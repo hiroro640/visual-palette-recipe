@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import os
-import streamlit.components.v1 as components
 
 def find_matches(user_rgb, df, top_n=5):
     matches = []
@@ -143,26 +142,34 @@ st.markdown("""
 st.markdown('<div class="main-title">🎨 Visual Palette Recipe</div>', unsafe_allow_html=True)
 st.caption("Color Huntのミニマリズムを纏った配色パレットジェネレーター (Prototype)")
 
-# --- 1. 🧭 状態（セッション）の管理 ---
-# カラーピッカーの最新の色をセッションに記憶する
-if "current_picked_color" not in st.session_state:
-    st.session_state.current_picked_color = "#3B82F6"
+# --- 1. 🧭 URLパラメータから状態を復元（ブラウザのリロード対策） ---
+query_params = st.query_params
 
-if "poster_idx" not in st.session_state:
+# URLに色情報があればそれを使う。なければデフォルトの青(#3B82F6)
+if 'color' in query_params:
+    default_color = "#" + query_params['color']
+else:
+    default_color = "#3B82F6"
+
+# URLにレシピ番号があればそれを使う。なければ最初のレシピ(0)
+if 'recipe_idx' in query_params:
+    try:
+        st.session_state.poster_idx = int(query_params['recipe_idx'])
+    except:
+        st.session_state.poster_idx = 0
+else:
     st.session_state.poster_idx = 0
 
 # --- 2. 🧭 サイドバー ---
 with st.sidebar:
     st.write("### 🔍 スカウトカラー")
-    picked_color = st.color_picker("探したい色を直感的に選択", st.session_state.current_picked_color)
+    picked_color = st.color_picker("探したい色を直感的に選択", default_color)
     
-    # 💡 重要なバグ修正：もし色が変更されたら、インデックスを強制的に「RECIPE 1」に戻す！
-    if picked_color != st.session_state.current_picked_color:
-        st.session_state.current_picked_color = picked_color
-        st.session_state.poster_idx = 0  # 選択レシピをリセット
-        # クエリパラメータも完全に初期化して、古い色への逆戻りを完璧に防止する
-        if hasattr(st, "query_params"):
-            st.query_params.clear()
+    # 💡 重要なバグ修正：もしカラーピッカーで新しい色が選ばれたら、URLパラメータを更新して強制再描画！
+    if picked_color != default_color:
+        clean_hex = picked_color.replace('#', '')
+        st.query_params.update(color=clean_hex, recipe_idx=0)
+        st.rerun()
             
     user_rgb = np.array([int(picked_color[1:3], 16), int(picked_color[3:5], 16), int(picked_color[5:7], 16)])
     
@@ -172,15 +179,6 @@ with st.sidebar:
     
     st.write("---")
     st.caption("※2%以下の細かなカラーノイズは自動で除外され、主要な配色比率のみが抽出されます。")
-
-# --- クエリパラメータからインデックスの取得 ---
-query_params = st.query_transform() if hasattr(st, "query_transform") else st.query_params
-if 'recipe_idx' in query_params:
-    try:
-        # パラメータがある場合はそれをセット
-        st.session_state.poster_idx = int(query_params['recipe_idx'])
-    except:
-        st.session_state.poster_idx = 0
 
 # --- 3. 🎬 メインコンテンツエリア ---
 try:
@@ -222,9 +220,10 @@ try:
                     card_html += f'<div class="pure-block" style="background-color: {hex_c}; width: {pct}%;">{indicator_markup}</div>'
                 card_html += '</div></div>'
                 
-                # パレットカード自体を安全にリンク要素（Aタグ）化し、URLクエリを介してStreamlitへ状態通知
+                # 💡 重要なバグ修正：リンク遷移先URLに「選択中の色情報」も付与する
+                clean_color_hex = picked_color.replace('#', '')
                 st.markdown(f"""
-                    <a href="?recipe_idx={i}" target="_self" style="text-decoration: none; color: inherit; display: block;">
+                    <a href="?recipe_idx={i}&color={clean_color_hex}" target="_self" style="text-decoration: none; color: inherit; display: block;">
                         {card_html}
                     </a>
                 """, unsafe_allow_html=True)
@@ -259,7 +258,6 @@ try:
                 ratios.append(ratio_pct)
                 labels.append(f" {hex_c.upper()} ({ratio_pct}%)")
             
-            # ドーナツグラフのフォント色や軸も、ダークモードに影響されないようにライト色で強制指定
             fig = go.Figure(data=[go.Pie(
                 labels=labels,
                 values=ratios,
