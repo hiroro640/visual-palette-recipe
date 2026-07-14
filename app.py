@@ -24,21 +24,29 @@ def find_matches(user_rgb, df, top_n=5):
 # --- UI全体の設定と、ノイズを極限まで削った引き算のCSS ---
 st.set_page_config(page_title="Visual Palette Recipe", layout="wide")
 
+# 💡 ダークモード強制防止：背景とベース文字色をライトモード（白・グレー）に固定するスタイル
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght=300;400;500;600&display=swap');
     
-    html, body, [data-testid='stSidebar'] {
-        font-family: 'Inter', sans-serif;
-        background-color: #F7F9FA;
-        color: #2D3748;
+    /* アプリ全体、メインエリア、サイドバーの背景色・文字色を完全強制指定（ダークモード対策） */
+    html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"], [data-testid="stSidebar"] {
+        font-family: 'Inter', sans-serif !important;
+        background-color: #F7F9FA !important;
+        color: #2D3748 !important;
     }
     
+    /* サイドバー内部要素のテキスト色をダークモード時でも黒系に固定 */
+    [data-testid="stSidebar"] p, [data-testid="stSidebar"] h3, [data-testid="stSidebar"] span {
+        color: #2D3748 !important;
+    }
+    
+    /* メインタイトル */
     .main-title {
         font-size: 28px;
         font-weight: 600;
         letter-spacing: -0.5px;
-        color: #1A202C;
+        color: #1A202C !important;
         margin-bottom: 2px;
     }
     
@@ -47,7 +55,7 @@ st.markdown("""
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 1px;
-        color: #718096;
+        color: #718096 !important;
         margin-bottom: 12px;
         margin-top: 16px;
     }
@@ -64,7 +72,7 @@ st.markdown("""
     .colorhunt-pure-card {
         border-radius: 12px;
         overflow: hidden;
-        background: #FFFFFF;
+        background: #FFFFFF !important;
         box-shadow: 0 4px 10px rgba(0,0,0,0.02);
         border: none !important; /* 枠線は絶対に描かない */
         transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -80,14 +88,14 @@ st.markdown("""
         font-size: 11px;
         font-weight: 500;
         padding: 8px 12px;
-        color: #A0AEC0; /* 非選択時は薄いグレー */
-        background: #FFFFFF;
+        color: #A0AEC0 !important; /* 非選択時は薄いグレー */
+        background: #FFFFFF !important;
         text-align: left;
     }
     .colorhunt-pure-card.active .pure-meta {
-        color: #2D3748; /* 選択中だけ文字がハッキリ浮かび上がる */
+        color: #2D3748 !important; /* 選択中だけ文字がハッキリ浮かび上がる */
         font-weight: 600;
-        background: #F1F5F9;
+        background: #F1F5F9 !important;
     }
     
     .pure-bar {
@@ -112,7 +120,7 @@ st.markdown("""
         transform: translate(-50%, -50%);
         width: 10px;
         height: 10px;
-        background-color: #FFFFFF;
+        background-color: #FFFFFF !important;
         border-radius: 50%;
         box-shadow: 0 0 0 2px rgba(0,0,0,0.5);
     }
@@ -135,20 +143,27 @@ st.markdown("""
 st.markdown('<div class="main-title">🎨 Visual Palette Recipe</div>', unsafe_allow_html=True)
 st.caption("Color Huntのミニマリズムを纏った配色パレットジェネレーター (Prototype)")
 
-# クエリパラメータによる状態管理へ移行（表示バグの原因となるダサいUI要素を完全に排除するため）
-query_params = st.query_transform() if hasattr(st, "query_transform") else st.query_params
-if 'recipe_idx' in query_params:
-    try:
-        st.session_state.poster_idx = int(query_params['recipe_idx'])
-    except:
-        st.session_state.poster_idx = 0
-elif 'poster_idx' not in st.session_state:
+# --- 1. 🧭 状態（セッション）の管理 ---
+# カラーピッカーの最新の色をセッションに記憶する
+if "current_picked_color" not in st.session_state:
+    st.session_state.current_picked_color = "#3B82F6"
+
+if "poster_idx" not in st.session_state:
     st.session_state.poster_idx = 0
 
 # --- 2. 🧭 サイドバー ---
 with st.sidebar:
     st.write("### 🔍 スカウトカラー")
-    picked_color = st.color_picker("探したい色を直感的に選択", "#3B82F6")
+    picked_color = st.color_picker("探したい色を直感的に選択", st.session_state.current_picked_color)
+    
+    # 💡 重要なバグ修正：もし色が変更されたら、インデックスを強制的に「RECIPE 1」に戻す！
+    if picked_color != st.session_state.current_picked_color:
+        st.session_state.current_picked_color = picked_color
+        st.session_state.poster_idx = 0  # 選択レシピをリセット
+        # クエリパラメータも完全に初期化して、古い色への逆戻りを完璧に防止する
+        if hasattr(st, "query_params"):
+            st.query_params.clear()
+            
     user_rgb = np.array([int(picked_color[1:3], 16), int(picked_color[3:5], 16), int(picked_color[5:7], 16)])
     
     r, g, b = user_rgb
@@ -157,6 +172,15 @@ with st.sidebar:
     
     st.write("---")
     st.caption("※2%以下の細かなカラーノイズは自動で除外され、主要な配色比率のみが抽出されます。")
+
+# --- クエリパラメータからインデックスの取得 ---
+query_params = st.query_transform() if hasattr(st, "query_transform") else st.query_params
+if 'recipe_idx' in query_params:
+    try:
+        # パラメータがある場合はそれをセット
+        st.session_state.poster_idx = int(query_params['recipe_idx'])
+    except:
+        st.session_state.poster_idx = 0
 
 # --- 3. 🎬 メインコンテンツエリア ---
 try:
@@ -173,7 +197,7 @@ try:
         
         st.write("")
         
-        # 🔄 【完全新規】画面上の不要な残骸ボタンを絶対に生成しないクリック手法
+        # 🔄 画面上の不要な残骸ボタンを絶対に生成しないクリック手法
         btn_cols = st.columns(len(recs))
         for i, rec in enumerate(recs):
             with btn_cols[i]:
@@ -199,7 +223,6 @@ try:
                 card_html += '</div></div>'
                 
                 # パレットカード自体を安全にリンク要素（Aタグ）化し、URLクエリを介してStreamlitへ状態通知
-                # これにより、画面上に不要なStreamlitコンポーネントが一切生成されなくなります
                 st.markdown(f"""
                     <a href="?recipe_idx={i}" target="_self" style="text-decoration: none; color: inherit; display: block;">
                         {card_html}
@@ -236,6 +259,7 @@ try:
                 ratios.append(ratio_pct)
                 labels.append(f" {hex_c.upper()} ({ratio_pct}%)")
             
+            # ドーナツグラフのフォント色や軸も、ダークモードに影響されないようにライト色で強制指定
             fig = go.Figure(data=[go.Pie(
                 labels=labels,
                 values=ratios,
