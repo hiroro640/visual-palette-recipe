@@ -45,13 +45,6 @@ st.markdown("""
         background-color: #F3F1EA;
         border-right: 1px solid #E4E1D9;
     }
-    [data-testid='stSidebar'] > div:first-child {
-        width: 340px !important;
-    }
-    [data-testid='stSidebar'][aria-expanded="true"] {
-        width: 340px !important;
-        min-width: 340px !important;
-    }
 
     [data-testid='stHeader'] { background: transparent; }
 
@@ -121,12 +114,11 @@ st.markdown("""
         margin-bottom: 16px;
     }
     .sidebar-field-label {
-        font-family: 'Inter', sans-serif;
-        font-size: 12px;
-        line-height: 1.5;
-        letter-spacing: 0.1px;
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 1px;
         color: #767D87;
-        margin-bottom: 16px;
+        margin-bottom: 8px;
     }
     [data-testid='stSidebar'] hr {
         border-top: 1px solid #E4E1D9;
@@ -282,15 +274,6 @@ st.markdown("""
        Streamlitのcolumnsは基本的に自動で折り返すが、確実性のため
        flex-wrapとmin-widthを明示的に指定して確実にスタックさせる */
     @media (max-width: 680px) {
-        [data-testid='stSidebar'] > div:first-child {
-            width: 86vw !important;
-            max-width: 340px !important;
-        }
-        [data-testid='stSidebar'][aria-expanded="true"] {
-            width: 86vw !important;
-            max-width: 340px !important;
-            min-width: 0 !important;
-        }
         [data-testid="stHorizontalBlock"] {
             flex-wrap: wrap !important;
             row-gap: 20px;
@@ -395,21 +378,17 @@ if 'picked_color' not in st.session_state:
 with st.sidebar:
     st.markdown('<div class="sidebar-eyebrow">Scout Color</div>', unsafe_allow_html=True)
     st.markdown('<div class="sidebar-title">🔍 スカウトカラー</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="sidebar-field-label">色をクリックして選ぶと、近い配色のポスターが自動で表示されます</div>',
-        unsafe_allow_html=True
-    )
 
     current_hex = st.session_state.picked_color.upper()
 
     # 正確な色をワンクリックでネイティブのピッカーから直接選ぶ
-    swatch_col, info_col = st.columns([1, 2.4])
+    swatch_col, info_col = st.columns([1, 2])
     with swatch_col:
         st.color_picker("色を選択", key="picked_color", label_visibility="collapsed")
     with info_col:
         readout_hex = st.session_state.picked_color.upper()
         st.markdown(
-            f'<div class="custom-readout"><span class="cs-label">Current Pigment</span>'
+            f'<div class="custom-readout"><span class="cs-label">Current</span>'
             f'<span class="cs-value">{readout_hex}</span></div>',
             unsafe_allow_html=True
         )
